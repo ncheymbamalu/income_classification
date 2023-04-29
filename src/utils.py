@@ -1,5 +1,5 @@
 """Module docstring"""
-from typing import Tuple, Dict, Any
+from typing import Tuple, List, Dict, Any
 import os
 import sys
 import pickle
@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 
 from yaml import SafeLoader
+from sklearn.feature_selection import mutual_info_classif
+from mrmr import mrmr_classif
 from sklearn.model_selection import train_test_split
 from catboost import CatBoostClassifier
 
@@ -185,5 +187,98 @@ def impute_features(
                 x_train[col] = x_train[col].astype(int).map(itoc[col])
                 x_test[col] = x_test[col].astype(int).map(itoc[col])
         return x_train, x_test, y_train, y_test
+    except Exception as err:
+        raise CustomException(err, sys) from err
+
+
+def get_informative_features(x_train: pd.DataFrame, y_train: pd.Series) -> List[str]:
+    """
+    Returns a list containing the most informative features
+
+    Args:
+        x_train: Train set feature matrix
+        y_train: Train set target vector
+
+    Returns:
+        informative_features: List containing the most informative features
+    """
+    try:
+        df_train = pd.concat([x_train, y_train], axis=1).copy(deep=True)
+        params = load_artifact(r"./conf/parameters.yml")
+
+        # encode the target variable
+        target = params["target"]
+        target_classes = sorted(set(df_train[target]))
+        target_encoder = dict(zip(target_classes, [0, 1]))
+        df_train[target] = df_train[target].map(target_encoder)
+
+        # a dictionary that maps each feature to its mutual info score
+        mutual_info = {}
+        numeric_cols = params["numeric_features"]
+        nominal_cols = params["nominal_features"]
+        ordinal_cols = params["ordinal"]["features"]
+        for col in numeric_cols + nominal_cols + ordinal_cols:
+            # standardize the numeric features
+            if col in numeric_cols:
+                train_mean, train_std = df_train[col].mean(), df_train[col].std()
+                df_train[col] = (df_train[col] - train_mean) / train_std
+                score = mutual_info_classif(
+                    df_train[[col]],
+                    df_train[target],
+                    random_state=params["random_state"]
+                )[0]
+                mutual_info[col] = score
+            # label encode and standardize the nominal features
+            elif col in nominal_cols:
+                categories = df_train.groupby(col)[target].mean().index.tolist()
+                values = df_train.groupby(col)[target].mean().values.tolist()
+                ctov = dict(zip(categories, values))
+                df_train[col] = df_train[col].map(ctov)
+                train_mean, train_std = df_train[col].mean(), df_train[col].std()
+                df_train[col] = (df_train[col] - train_mean) / train_std
+                score = mutual_info_classif(
+                    df_train[[col]],
+                    df_train[target],
+                    random_state=params["random_state"]
+                )[0]
+                mutual_info[col] = score
+            else:
+                # ordinal encode and standardize the ordinal features
+                categories = params["ordinal"]["categories"][col]
+                indices = range(len(categories))
+                ctoi = dict(zip(categories, indices))
+                df_train[col] = df_train[col].map(ctoi)
+                train_mean, train_std = df_train[col].mean(), df_train[col].std()
+                df_train[col] = (df_train[col] - train_mean) / train_std
+                score = mutual_info_classif(
+                    df_train[[col]],
+                    df_train[target],
+                    random_state=params["random_state"]
+                )[0]
+                mutual_info[col] = score
+
+        # specify a threshold mutual information score
+        threshold = np.mean(list(mutual_info.values()))
+
+        # remove the features whose mutual info score is less than the threshold
+        mutual_info: dict = {
+            col: score.round(4)
+            for (col, score) in mutual_info.items()
+            if score > threshold
+        }
+
+        # most informative features via mutual information
+        mutual_info_features = list(mutual_info.keys())
+
+        # most informative features via maximum relevancy, minimum redundancy
+        mrmr_features: list = mrmr_classif(
+            X=df_train.drop(target, axis=1),
+            y=df_train[target],
+            K=len(mutual_info),
+            relevance="f",
+            redundancy="c"
+        )
+        informative_features = list(set(mutual_info_features + mrmr_features))
+        return informative_features
     except Exception as err:
         raise CustomException(err, sys) from err

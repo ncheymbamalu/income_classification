@@ -14,7 +14,7 @@ from src.components.process import DataProcessor
 
 class Predict:
     def __init__(self):
-        self.model = load_artifact(r"./artifacts/catboost_clf")
+        self.model = load_artifact(r"./artifacts/catboost_clf_all_features")
 
     def evaluate(self, feature_matrix: pd.DataFrame, target_vector: pd.Series):
         try:
