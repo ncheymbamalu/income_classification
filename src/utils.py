@@ -101,6 +101,7 @@ def preprocess_data(path: str) -> pd.DataFrame:
                 )
             )
             .drop(["education_num"], axis=1)
+            .drop_duplicates(keep="first")
             .copy(deep=True)
         )
         return df_preprocessed

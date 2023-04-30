@@ -23,13 +23,16 @@ class Predict:
                 target_vector,
                 cat_features=feature_matrix.select_dtypes("O").columns.tolist()
             )
+            prediction_vector: np.ndarray = self.model.predict(pool_data)
             pos_class_pred_proba: np.ndarray = self.model.predict_proba(pool_data)[:, 1]
-            metric: float = roc_auc_score(target_vector, pos_class_pred_proba)
+            accuracy: float = np.mean(target_vector.values == prediction_vector)
+            auc_score: float = roc_auc_score(target_vector, pos_class_pred_proba)
             logging.info(
-                "The test set AUC score of %s was produced via %s",
-                np.round(metric, 2),
-                str(self.model).replace("()", "")
+                "AUC Score: %s, Accuracy: %s",
+                np.round(auc_score, 2),
+                np.round(accuracy, 2)
             )
+            return auc_score, accuracy
         except Exception as err:
             raise CustomException(err, sys) from err
 
@@ -37,4 +40,4 @@ class Predict:
 if __name__ == "__main__":
     raw_data_path = DataIngestion().ingest_data()
     _, x_test, _, y_test = DataProcessor(raw_data_path).process_data()
-    Predict().evaluate(x_test, y_test)
+    _, _ = Predict().evaluate(x_test, y_test)
