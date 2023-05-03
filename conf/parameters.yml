@@ -37,9 +37,10 @@ ordinal:
       - Prof-school
       - Doctorate
 informative_features:
-  - education
   - occupation
-  - relationship
-  - marital_status
   - capital_gain
+  - education
+  - relationship
+  - gender
   - age
+  - marital_status

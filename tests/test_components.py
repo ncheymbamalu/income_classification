@@ -28,6 +28,6 @@ def test_predict(get_raw_data_path):
     _, x_test, _, y_test = DataProcessor(get_raw_data_path).process_data()
     test_auc, test_accuracy = Predict().evaluate(x_test, y_test)
     baseline_auc = 0.5
-    baseline_accuracy = y_test.value_counts("normalize").values[0]
+    baseline_accuracy = y_test.value_counts("normalize").max()
     assert test_auc > baseline_auc
     assert test_accuracy > baseline_accuracy

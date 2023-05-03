@@ -6,8 +6,10 @@ import pickle
 import yaml
 import numpy as np
 import pandas as pd
+import streamlit as st
 
 from yaml import SafeLoader
+from ydata_profiling import ProfileReport
 from sklearn.feature_selection import mutual_info_classif
 from mrmr import mrmr_classif
 from sklearn.model_selection import train_test_split
@@ -28,14 +30,13 @@ def load_artifact(path: str) -> Any:
     """
     try:
         if path.split(".")[-1] == "parquet":
-            obj = pd.read_parquet(path)
-        elif path.split(".")[-1] == "yml":
-            obj = yaml.load(open(path), Loader=SafeLoader)
-        elif path.split(".")[-1] == "pkl":
-            obj = pickle.load(open(path, "rb"))
-        elif "catboost_clf" in path:
-            obj = CatBoostClassifier().load_model(path)
-        return obj
+            return pd.read_parquet(path)
+        if path.split(".")[-1] == "yml":
+            return yaml.load(open(path), Loader=SafeLoader)
+        if path.split(".")[-1] == "pkl":
+            return pickle.load(open(path, "rb"))
+        if "catboost_clf" in path:
+            return CatBoostClassifier().load_model(path)
     except Exception as err:
         raise CustomException(err, sys) from err
 
@@ -72,6 +73,7 @@ def remove_whitespace(data: pd.DataFrame) -> pd.DataFrame:
         raise CustomException(err, sys) from err
 
 
+@st.cache_data
 def preprocess_data(path: str) -> pd.DataFrame:
     """
     Returns a pre-processed DataFrame
@@ -105,6 +107,24 @@ def preprocess_data(path: str) -> pd.DataFrame:
             .copy(deep=True)
         )
         return df_preprocessed
+    except Exception as err:
+        raise CustomException(err, sys) from err
+
+
+@st.cache_resource
+def create_profile_report(data: pd.DataFrame) -> Any:
+    """
+    Creates a ydata-profiling report for data
+
+    Args:
+        data: DataFrame
+
+    Returns:
+        profile: ydata-profiling report
+    """
+    try:
+        profile = ProfileReport(data, explorative=True, dark_mode=True)
+        return profile
     except Exception as err:
         raise CustomException(err, sys) from err
 
@@ -154,15 +174,25 @@ def impute_features(
             if x_train[col].isna().sum() > 0
         ]
 
-        # label encode the categorical features
-        ctoi, itoc = {}, {}
+        # encode the categorical features
+        ctoi, ctov, vtoi, itoc = {}, {}, {}, {}
         for col in nominal_cols + ordinal_cols:
-            categories = sorted(set(x_train[col].dropna()))
-            indices = range(len(categories))
-            ctoi[col] = dict(zip(categories, indices))
-            itoc[col] = dict(zip(indices, categories))
-            x_train[col] = x_train[col].map(ctoi[col])
-            x_test[col] = x_test[col].map(ctoi[col])
+            if col in nominal_cols:
+                categories = x_train[col].value_counts("normalize").index.tolist()
+                normalized_counts = x_train[col].value_counts("normalize").values.tolist()
+                indices = np.arange(len(categories)).tolist()[::-1]
+                ctov[col] = dict(zip(categories, normalized_counts))
+                vtoi[col] = dict(zip(normalized_counts, indices))
+                itoc[col] = dict(zip(indices, categories))
+                x_train[col] = x_train[col].map(ctov[col]).map(vtoi[col])
+                x_test[col] = x_test[col].map(ctov[col]).map(vtoi[col])
+            else:
+                categories = params["ordinal"]["categories"][col]
+                indices = range(len(categories))
+                ctoi[col] = dict(zip(categories, indices))
+                itoc[col] = dict(zip(indices, categories))
+                x_train[col] = x_train[col].map(ctoi[col])
+                x_test[col] = x_test[col].map(ctoi[col])
 
         # read in './artifacts/imputer.pkl'
         imputer = load_artifact(r"./artifacts/imputer.pkl")
@@ -231,18 +261,24 @@ def get_informative_features(x_train: pd.DataFrame, y_train: pd.Series) -> List[
                 mutual_info[col] = score
             # label encode and standardize the nominal features
             elif col in nominal_cols:
-                categories = df_train.groupby(col)[target].mean().index.tolist()
-                values = df_train.groupby(col)[target].mean().values.tolist()
-                ctov = dict(zip(categories, values))
-                df_train[col] = df_train[col].map(ctov)
+                # categories = df_train.groupby(col)[target].mean().index.tolist()
+                # values = df_train.groupby(col)[target].mean().values.tolist()
+                # ctov = dict(zip(categories, values))
+                # df_train[col] = df_train[col].map(ctov)
+                categories = df_train[col].value_counts("normalize").index.tolist()
+                normalized_counts = df_train[col].value_counts("normalize").values.tolist()
+                indices = np.arange(len(normalized_counts)).tolist()[::-1]
+                ctov = dict(zip(categories, normalized_counts))
+                vtoi = dict(zip(normalized_counts, indices))
+                df_train[col] = df_train[col].map(ctov).map(vtoi)
                 train_mean, train_std = df_train[col].mean(), df_train[col].std()
                 df_train[col] = (df_train[col] - train_mean) / train_std
                 score = mutual_info_classif(
                     df_train[[col]],
                     df_train[target],
                     random_state=params["random_state"]
-                )[0]
-                mutual_info[col] = score
+                )
+                mutual_info[col] = score[0]
             else:
                 # ordinal encode and standardize the ordinal features
                 categories = params["ordinal"]["categories"][col]
@@ -255,8 +291,8 @@ def get_informative_features(x_train: pd.DataFrame, y_train: pd.Series) -> List[
                     df_train[[col]],
                     df_train[target],
                     random_state=params["random_state"]
-                )[0]
-                mutual_info[col] = score
+                )
+                mutual_info[col] = score[0]
 
         # specify a threshold mutual information score
         threshold = np.mean(list(mutual_info.values()))

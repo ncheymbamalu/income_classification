@@ -8,30 +8,33 @@ from src.utils import load_artifact
 class CustomData:
     def __init__(
             self,
-            education: str,
             occupation: str,
-            relationship: str,
-            marital_status: str,
             capital_gain: str,
-            age: int
+            education: str,
+            relationship: str,
+            gender: str,
+            age: int,
+            marital_status: str
     ):
-        self.education = education
         self.occupation = occupation
-        self.relationship = relationship
-        self.marital_status = marital_status
         self.capital_gain = capital_gain
+        self.education = education
+        self.relationship = relationship
+        self.gender = gender
         self.age = age
+        self.marital_status = marital_status
 
     def to_dataframe(self):
         try:
             return pd.DataFrame(
                 {
-                    "education": [self.education],
                     "occupation": [self.occupation],
-                    "relationship": [self.relationship],
-                    "marital_status": [self.marital_status],
                     "capital_gain": [self.capital_gain],
-                    "age": [self.age]
+                    "education": [self.education],
+                    "relationship": [self.relationship],
+                    "gender": [self.gender],
+                    "age": [self.age],
+                    "marital_status": [self.marital_status]
                 }
             )
         except Exception as err:

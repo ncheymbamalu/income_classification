@@ -25,11 +25,12 @@ class DataIngestion:
             raw_data = load_artifact(r"./data/income_evaluation.parquet")
 
             logging.info(
-                "Saving the raw data to %s",
+                "Saving %s to %s",
+                self.ingestion_config.raw_data_path.split("/")[-1],
                 os.path.join(os.getcwd(), os.path.dirname(self.ingestion_config.raw_data_path))
             )
             save_artifact(raw_data, self.ingestion_config.raw_data_path)
-            logging.info("Data ingestion complete")
+            logging.info("Data ingestion completed")
             return self.ingestion_config.raw_data_path
         except Exception as err:
             raise CustomException(err, sys) from err
