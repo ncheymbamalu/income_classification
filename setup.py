@@ -7,7 +7,7 @@ PYTHON_PACKAGES = [
 ]
 
 setup(
-    name="income_evaluation",
+    name="income_classification",
     version="0.0.1",
     author="Nchey Mbamalu",
     author_email="nchey.learnings@gmail.com",
