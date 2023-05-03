@@ -7,7 +7,7 @@ def return_error_message(error, detail: sys) -> str:
     _, _, execution_info = detail.exc_info()
     filename: str = execution_info.tb_frame.f_code.co_filename
     line_number: int = execution_info.tb_lineno
-    message = f"ERROR: {str(error)}; line {line_number} from '{filename}'"
+    message = f"{str(error)} --> line {line_number} from '{filename}'"
     return message
 
 

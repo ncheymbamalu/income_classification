@@ -1,4 +1,3 @@
-"""Module docstring"""
 from typing import Tuple, List, Dict, Any
 import os
 import sys

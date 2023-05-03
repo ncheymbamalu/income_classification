@@ -22,7 +22,7 @@ class DataIngestion:
     def ingest_data(self):
         try:
             logging.info("Data ingestion initiated")
-            raw_data = load_artifact(r"./data/income_evaluation.parquet")
+            raw_data = load_artifact(r"./data/income_classification.parquet")
 
             logging.info(
                 "Saving %s to %s",
