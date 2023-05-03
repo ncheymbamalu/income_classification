@@ -5,6 +5,7 @@ import pickle
 import yaml
 import numpy as np
 import pandas as pd
+import catboost
 import streamlit as st
 
 from yaml import SafeLoader
@@ -55,6 +56,8 @@ def save_artifact(obj: Any, path: str) -> None:
             pickle.dump(obj, open(path, "wb"))
         if path.split(".")[-1] == "parquet":
             obj.to_parquet(path)
+        if isinstance(obj, catboost.core.CatBoostClassifier):
+            obj.save_model(path)
     except Exception as err:
         raise CustomException(err, sys) from err
 
